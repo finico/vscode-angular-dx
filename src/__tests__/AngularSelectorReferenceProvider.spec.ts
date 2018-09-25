@@ -1,16 +1,21 @@
-import { Position, Uri, window, workspace } from 'vscode';
+import { Position, Uri, window, workspace, Range, TextDocument } from 'vscode';
 import { AngularSelectorReferenceProvider } from '../AngularSelectorReferenceProvider';
+
+function createDocument(text = '', line = ''): TextDocument {
+    return {
+        lineAt: jest.fn().mockReturnValue({ text: line }),
+        getText: jest.fn().mockReturnValue(text),
+        getWordRangeAtPosition: jest.fn().mockReturnValue(new Range(0, 0, 0, 0)),
+        positionAt: jest.fn()
+    } as any;
+}
 
 describe('AngularSelectorReferenceProvider', () => {
     let provider: AngularSelectorReferenceProvider;
-    const doc = {
-        lineAt: jest.fn()
-    };
 
     beforeEach(() => {
         provider = new AngularSelectorReferenceProvider();
-        (workspace.findFiles as jest.Mock).mockReturnValue(Promise.resolve([Uri.file('file.html')]));
-        provider['readFile'] = jest.fn();
+        (workspace.findFiles as jest.Mock).mockResolvedValue([Uri.file('file.html')]);
     });
 
     it('should return exluded files in settings', () => {
@@ -32,148 +37,114 @@ describe('AngularSelectorReferenceProvider', () => {
     });
 
     it('should not find anything if it was called not at line with selector', async () => {
-        doc.lineAt.mockReturnValueOnce({ text: 'some text' });
-
-        const actual = await provider.provideReferences(doc as any, new Position(1, 1));
+        const actual = await provider.provideReferences(
+            createDocument('', 'some text'),
+            new Position(0, 0)
+        );
 
         expect(actual).toEqual([]);
     });
 
     it('should not find anything', async () => {
-        doc.lineAt.mockReturnValueOnce({
-            text: [
-                `import { Component } from '@angular/core';`,
-                `@Component({`,
-                `    selector: 'app-hero'`,
-                `})`,
-                `export class Hero {}`
-            ].join('\n')
-        });
-        (provider['readFile'] as jest.Mock).mockReturnValueOnce(Promise.resolve('<div></div>'));
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument('<div></div>')
+        );
 
-        const actual = await provider.provideReferences(doc as any, new Position(1, 1));
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: 'app-hero'`),
+            new Position(0, 0)
+        );
 
         expect(actual).toEqual([]);
     });
 
     it('should show error message and return empty results', async () => {
-        doc.lineAt.mockReturnValueOnce({
-            text: [
-                `import { Component } from '@angular/core';`,
-                `@Component({`,
-                `    selector: 'app-hero'`,
-                `})`,
-                `export class Hero {}`
-            ].join('\n')
-        });
-        (provider['readFile'] as jest.Mock).mockRejectedValueOnce(new Error('Something went wrong'));
+        (workspace.openTextDocument as jest.Mock).mockRejectedValueOnce(
+            new Error('Something went wrong')
+        );
 
-        const actual = await provider.provideReferences(doc as any, new Position(3, 20));
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: 'app-hero'`),
+            new Position(0, 0)
+        );
 
         expect(actual).toEqual([]);
         expect(window.showErrorMessage).toHaveBeenCalledWith('Something went wrong');
     });
 
     it('should find usage of app-hero component', async () => {
-        doc.lineAt.mockReturnValueOnce({
-            text: [
-                `import { Component } from '@angular/core';`,
-                `@Component({`,
-                `    selector: 'app-hero'`,
-                `})`,
-                `export class Hero {}`
-            ].join('\n')
-        });
-        (provider['readFile'] as jest.Mock).mockReturnValueOnce(Promise.resolve(
-            '<app-hero></app-hero>'
-        ));
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument('<app-hero></app-hero>')
+        );
 
-        const actual = await provider.provideReferences(doc as any, new Position(3, 20));
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: 'app-hero'`),
+            new Position(0, 0)
+        );
 
         expect(actual).toHaveLength(1);
-
-        const [first] = actual;
-
-        expect(first.range.start).toEqual(new Position(0, 1));
-        expect(first.range.end).toEqual(new Position(0, 9));
     });
 
     it('should find usages of app-hero-second components that used twice on one line', async () => {
-        doc.lineAt.mockReturnValueOnce({
-            text: [
-                `import { Component } from '@angular/core';`,
-                `@Component({`,
-                `    selector: 'app-hero-second'`,
-                `})`,
-                `export class Hero {}`
-            ].join('\n')
-        });
-        (provider['readFile'] as jest.Mock).mockReturnValueOnce(Promise.resolve(
-            '<app-hero-second></app-hero-second><app-hero-second></app-hero-second>'
-        ));
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument('<app-hero-second></app-hero-second><app-hero-second></app-hero-second>')
+        );
 
-        const actual = await provider.provideReferences(doc as any, new Position(3, 20));
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: 'app-hero-second'`),
+            new Position(0, 0)
+        );
 
         expect(actual).toHaveLength(2);
-
-        const [first, second] = actual;
-
-        expect(first.range.start).toEqual(new Position(0, 1));
-        expect(first.range.end).toEqual(new Position(0, 16));
-
-        expect(second.range.start).toEqual(new Position(0, 36));
-        expect(second.range.end).toEqual(new Position(0, 51));
     });
 
     it('should find all usages of heroProp directive', async () => {
-        doc.lineAt.mockReturnValueOnce({
-            text: [
-                `import { Directive } from '@angular/core';`,
-                `@Directive({`,
-                `    selector: '[heroProp]'`,
-                `})`,
-                `export class HeroProp {}`
-            ].join('\n')
-        });
-        (provider['readFile'] as jest.Mock).mockReturnValueOnce(Promise.resolve([
-            '<app-hero heroProp></app-hero>',
-            '<app-hero heroProp="value"></app-hero>',
-            '<app-hero [heroProp]="value"></app-hero>'
-        ].join('\n')));
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero heroProp></app-hero>',
+                '<app-hero heroProp="value"></app-hero>',
+                '<app-hero [heroProp]="value"></app-hero>'
+            ].join('\n'))
+        );
 
-        const actual = await provider.provideReferences(doc as any, new Position(3, 20));
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp]'`),
+            new Position(0, 0)
+        );
 
         expect(actual).toHaveLength(3);
-
-        const [first, second, third] = actual;
-
-        expect(first.range.start).toEqual(new Position(0, 10));
-        expect(first.range.end).toEqual(new Position(0, 18));
-
-        expect(second.range.start).toEqual(new Position(1, 10));
-        expect(second.range.end).toEqual(new Position(1, 18));
-
-        expect(third.range.start).toEqual(new Position(2, 11));
-        expect(third.range.end).toEqual(new Position(2, 19));
     });
 
     it('should find usage of structural directive', async () => {
-        doc.lineAt.mockReturnValueOnce({
-            text: [
-                `import { Directive } from '@angular/core';`,
-                `@Directive({`,
-                `    selector: '[heroStructural]'`,
-                `})`,
-                `export class HeroProp {}`
-            ].join('\n')
-        });
-        (provider['readFile'] as jest.Mock).mockReturnValueOnce(Promise.resolve([
-            '<app-hero *heroStructural></app-hero>',
-            '<app-hero *heroStructural="value"></app-hero>'
-        ].join('\n')));
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero *heroStructural></app-hero>',
+                '<app-hero *heroStructural="value"></app-hero>'
+            ].join('\n'))
+        );
 
-        const actual = await provider.provideReferences(doc as any, new Position(3, 20));
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroStructural]'`),
+            new Position(0, 0)
+        );
 
         expect(actual).toHaveLength(2);
+    });
+
+    it('should skip matches if vscode could not create range for that', async () => {
+        const doc = createDocument([
+            '<app-hero></app-hero>',
+            '<app-hero></app-hero>'
+        ].join('\n'));
+
+        (doc.getWordRangeAtPosition as jest.Mock).mockReturnValue(void 0);
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(doc);
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: 'app-hero'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(0);
     });
 });

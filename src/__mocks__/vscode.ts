@@ -33,7 +33,8 @@ const workspace: Partial<typeof vscode.workspace> = {
             inspect: jest.fn()
         };
     },
-    findFiles: jest.fn()
+    findFiles: jest.fn(),
+    openTextDocument: jest.fn()
 };
 
 const OverviewRulerLane = {
