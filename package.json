@@ -40,6 +40,9 @@
         "modulePathIgnorePatterns": [
             "<rootDir>/out/",
             "<rootDir>/node_modules/"
+        ],
+        "coveragePathIgnorePatterns": [
+            "helpers.ts$"
         ]
     }
 }

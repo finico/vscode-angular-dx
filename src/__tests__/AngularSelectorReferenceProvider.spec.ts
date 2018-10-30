@@ -1,14 +1,6 @@
-import { Position, Uri, window, workspace, Range, TextDocument } from 'vscode';
+import { Position, Uri, window, workspace } from 'vscode';
 import { AngularSelectorReferenceProvider } from '../AngularSelectorReferenceProvider';
-
-function createDocument(text = '', line = ''): TextDocument {
-    return {
-        lineAt: jest.fn().mockReturnValue({ text: line }),
-        getText: jest.fn().mockReturnValue(text),
-        getWordRangeAtPosition: jest.fn().mockReturnValue(new Range(0, 0, 0, 0)),
-        positionAt: jest.fn()
-    } as any;
-}
+import { createDocument } from '../helpers';
 
 describe('AngularSelectorReferenceProvider', () => {
     let provider: AngularSelectorReferenceProvider;
