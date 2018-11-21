@@ -91,7 +91,7 @@ describe('AngularSelectorReferenceProvider', () => {
         expect(actual).toHaveLength(2);
     });
 
-    it('should find all usages of heroProp directive', async () => {
+    it('should find usages of heroProp directive', async () => {
         (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
             createDocument([
                 '<app-hero heroProp></app-hero>',
@@ -139,5 +139,123 @@ describe('AngularSelectorReferenceProvider', () => {
         );
 
         expect(actual).toHaveLength(0);
+    });
+
+    it('should skip matches when they are event bindings', async () => {
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero heroProp></app-hero>',
+                '<app-hero (heroProp)="onHeroChange()"></app-hero>'
+            ].join('\n'))
+        );
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp]'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(1);
+    });
+
+    it('should find usages of complex selector', async () => {
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero heroProp></app-hero>',
+                '<app-hero [heroProp]="value"></app-hero>'
+            ].join('\n'))
+        );
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp]:not([name]):not([title])'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(2);
+    });
+
+    it('should find usages of selector with two way binding', async () => {
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero [(heroProp)]="value"></app-hero>',
+                `<app-hero
+                    [(heroProp)]="value"
+                ></app-hero>`
+            ].join('\n'))
+        );
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp]'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(2);
+    });
+
+    it('should find usages of multi selector', async () => {
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero heroProp></app-hero>',
+                '<app-hero [heroProp]="value"></app-hero>',
+                '<app-hero-prop></app-hero-prop>'
+            ].join('\n'))
+        );
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp], app-hero-prop'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(3);
+    });
+
+    it('should find usages of multi selector when it is only one in a template', async () => {
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero heroProp></app-hero>',
+                '<app-hero [heroProp]="value"></app-hero>'
+            ].join('\n'))
+        );
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp], app-hero-prop'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(2);
+    });
+
+    it('should find usages of multi selector even if one of them is invalid', async () => {
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero heroProp></app-hero>',
+                '<app-hero [heroProp]="value"></app-hero>',
+                '<app-hero (heroProp)="value"></app-hero>'
+            ].join('\n'))
+        );
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp], (heroProp)'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(2);
+    });
+
+    it('should find usages of selector when it used several times in one line', async () => {
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument([
+                '<app-hero heroProp></app-hero><app-hero heroProp="value"></app-hero>',
+                '<app-hero [heroProp]="value"></app-hero><app-hero [heroProp]="value"></app-hero>',
+                '<app-hero *heroProp="value"></app-hero><app-hero *heroProp></app-hero>',
+                '<app-hero (heroProp)="value"></app-hero><app-hero (heroProp)="value"></app-hero>'
+            ].join('\n'))
+        );
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp], (heroProp)'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(6);
     });
 });
