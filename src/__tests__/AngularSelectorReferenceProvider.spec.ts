@@ -7,6 +7,7 @@ describe('AngularSelectorReferenceProvider', () => {
 
     beforeEach(() => {
         provider = new AngularSelectorReferenceProvider();
+        provider['readFile'] = jest.fn(() => Promise.resolve(''));
         (workspace.findFiles as jest.Mock).mockResolvedValue([Uri.file('file.html')]);
     });
 

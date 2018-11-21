@@ -1,24 +1,33 @@
+import { readFile } from 'fs';
+import { promisify } from 'util';
 import { Location, Position, ReferenceProvider, TextDocument, window, workspace } from 'vscode';
 
 export class AngularSelectorReferenceProvider implements ReferenceProvider {
+    private readFile = promisify(readFile);
+
     async provideReferences(document: TextDocument, position: Position) {
         const result: Location[] = [];
-        const selector = document.lineAt(position).text.match(/selector:\s*\W\[?([\w-]+)\]?/);
+        const selectorMatch = document.lineAt(position).text.match(/selector *: *\W(\[?[\w-]+\]?)/);
 
-        if (!selector) {
+        if (!selectorMatch) {
             return result;
         }
 
-        const pattern = new RegExp(`[<\\[\\s\\*](${selector[1]})[>\\]=\\s]`, 'g');
+        const selector = selectorMatch[1];
+        const pattern = selector[0] === '[' ?
+            `[ \\t\\[\\*](${selector.slice(1, -1)})[ =>\\]\\/\\n]` :
+            `<(${selector})[ >\\/\\n]`;
+        const regex = new RegExp(pattern, 'g');
         const uris = await this.findFiles();
 
         for (const uri of uris) {
             try {
-                const doc = await workspace.openTextDocument(uri);
+                const rawFileBuffer = await this.readFile(uri.fsPath);
+                const doc = await workspace.openTextDocument({ content: rawFileBuffer.toString() });
                 const text = doc.getText();
                 let matched = null;
 
-                while ((matched = pattern.exec(text)) !== null) {
+                while ((matched = regex.exec(text)) !== null) {
                     const range = doc.getWordRangeAtPosition(doc.positionAt(matched.index + 1));
 
                     if (range) {
