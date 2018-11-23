@@ -1,41 +1,41 @@
-import { readFile } from 'fs';
-import { promisify } from 'util';
-import { Location, Position, ReferenceProvider, TextDocument, window, workspace } from 'vscode';
+import { Location, Position, ReferenceProvider, TextDocument, Uri, workspace } from 'vscode';
 
 export class AngularSelectorReferenceProvider implements ReferenceProvider {
-    private readFile = promisify(readFile);
-
-    async provideReferences(document: TextDocument, position: Position) {
-        const result: Location[] = [];
+    async provideReferences(document: TextDocument, position: Position): Promise<Location[]> {
         const selectorMatch = document.lineAt(position).text.match(/selector\s*:\s*['"`](.+)['"`]/);
 
         if (!selectorMatch) {
-            return result;
+            return [];
         }
 
         const pattern = this.buildPattern(selectorMatch[1]);
-        const regex = new RegExp(pattern, 'g');
         const uris = await this.findFiles();
+        const locations = await this.processUris(uris, pattern);
+
+        return locations;
+    }
+
+    private async processUris(uris: Uri[], regex: RegExp): Promise<Location[]> {
+        const result: Location[] = [];
+        const wordRegex = /[\w-]+/;
+        const cache = new Map();
+
+        for (const textDocument of workspace.textDocuments) {
+            cache.set(textDocument.fileName, textDocument);
+        }
 
         for (const uri of uris) {
-            try {
-                const rawFileBuffer = await this.readFile(uri.fsPath);
-                const doc = await workspace.openTextDocument({
-                    content: rawFileBuffer.toString(),
-                    language: undefined
-                });
-                const text = doc.getText();
-                let matched = null;
+            const doc = cache.get(uri.fsPath) || await workspace.openTextDocument(uri);
+            const text = doc.getText();
+            let matched = null;
 
-                while ((matched = regex.exec(text)) !== null) {
-                    const range = doc.getWordRangeAtPosition(doc.positionAt(matched.index + 1), /[\w-]+/);
+            while ((matched = regex.exec(text))) {
+                const position = doc.positionAt(matched.index + 1);
+                const range = doc.getWordRangeAtPosition(position, wordRegex);
 
-                    if (range) {
-                        result.push(new Location(uri, range));
-                    }
+                if (range) {
+                    result.push(new Location(doc.uri, range));
                 }
-            } catch (e) {
-                window.showErrorMessage((e as Error).message);
             }
         }
 
@@ -46,7 +46,7 @@ export class AngularSelectorReferenceProvider implements ReferenceProvider {
     Although, it won't works as document.querySelector()
     All things like `:not()` will be ignored
     */
-    private buildPattern(selector: string): string {
+    private buildPattern(selector: string): RegExp {
         const selectorRegex = /^\s*(\[?)([\w-]+)(\]?)/;
         const parts = selector.split(',');
         let result = '';
@@ -65,16 +65,16 @@ export class AngularSelectorReferenceProvider implements ReferenceProvider {
             result += result ? '|' + pattern : pattern;
         }
 
-        return result;
+        return new RegExp(result, 'g');
     }
 
-    private findFiles() {
+    private findFiles(): Thenable<Uri[]> {
         const exclude = this.getExcludedFilesGlob();
 
         return workspace.findFiles('**/*.html', exclude);
     }
 
-    private getExcludedFilesGlob() {
+    private getExcludedFilesGlob(): string {
         const settingsExclude: { [index: string]: boolean } = {
             ...workspace.getConfiguration('files', null).get('exclude'),
             ...workspace.getConfiguration('search', null).get('exclude')

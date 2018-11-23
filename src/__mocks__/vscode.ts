@@ -18,6 +18,7 @@ const window = {
 };
 
 const workspace: Partial<typeof vscode.workspace> = {
+    textDocuments: [],
     getConfiguration(section?: string) {
         return {
             has(key: string) {
@@ -45,7 +46,9 @@ class Uri {
     public static parse = jest.fn();
 
     public static file(path: string) {
-        return path;
+        return {
+            fsPath: path
+        };
     }
 }
 
