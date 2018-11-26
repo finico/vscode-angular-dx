@@ -1,4 +1,4 @@
-import { Position, Uri, window, workspace } from 'vscode';
+import { Position, Uri, workspace } from 'vscode';
 import { AngularSelectorReferenceProvider } from '../AngularSelectorReferenceProvider';
 import { createDocument } from '../helpers';
 
@@ -7,7 +7,6 @@ describe('AngularSelectorReferenceProvider', () => {
 
     beforeEach(() => {
         provider = new AngularSelectorReferenceProvider();
-        provider['readFile'] = jest.fn(() => Promise.resolve(''));
         (workspace.findFiles as jest.Mock).mockResolvedValue([Uri.file('file.html')]);
     });
 
@@ -49,20 +48,6 @@ describe('AngularSelectorReferenceProvider', () => {
         );
 
         expect(actual).toEqual([]);
-    });
-
-    it('should show error message and return empty results', async () => {
-        (workspace.openTextDocument as jest.Mock).mockRejectedValueOnce(
-            new Error('Something went wrong')
-        );
-
-        const actual = await provider.provideReferences(
-            createDocument('', `    selector: 'app-hero'`),
-            new Position(0, 0)
-        );
-
-        expect(actual).toEqual([]);
-        expect(window.showErrorMessage).toHaveBeenCalledWith('Something went wrong');
     });
 
     it('should find usage of app-hero component', async () => {
@@ -257,5 +242,20 @@ describe('AngularSelectorReferenceProvider', () => {
         );
 
         expect(actual).toHaveLength(6);
+    });
+
+    it('should work with cached textDocuments', async () => {
+        workspace.textDocuments = [createDocument('<div heroProp></div>', '', 'cached.html')];
+        (workspace.findFiles as jest.Mock).mockResolvedValueOnce([Uri.file('file.html'), Uri.file('cached.html')]);
+        (workspace.openTextDocument as jest.Mock).mockResolvedValueOnce(
+            createDocument('<div heroProp></div>')
+        );
+
+        const actual = await provider.provideReferences(
+            createDocument('', `    selector: '[heroProp]'`),
+            new Position(0, 0)
+        );
+
+        expect(actual).toHaveLength(2);
     });
 });
