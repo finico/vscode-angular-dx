@@ -1,7 +1,7 @@
 {
     "name": "angular-dx",
     "displayName": "Angular DX",
-    "description": "",
+    "description": "Angular developer experience",
     "version": "1.0.0",
     "publisher": "finico",
     "license": "MIT",
@@ -43,13 +43,12 @@
     "devDependencies": {
         "@types/jest": "^23.3.2",
         "@types/node": "^10.10.1",
-        "codacy-coverage": "^3.1.0",
         "jest": "^23.6.0",
         "ts-jest": "^23.10.0",
         "tslint": "^5.8.0",
         "typescript": "^3.0.3",
         "vsce": "^1.49.2",
-        "vscode": "^1.1.6"
+        "vscode": "1.1.22"
     },
     "jest": {
         "preset": "ts-jest",
